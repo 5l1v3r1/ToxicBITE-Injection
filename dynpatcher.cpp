@@ -79,16 +79,11 @@ void FindTables(Elf64_Sym*& SymbolTable, char*& GlobalOffsetTable, char*& String
 	}
 }
 
-int main(void)
+Elf64_Dyn* GetDynamicSection(Elf64_Ehdr* ElfHeader)
 {
-	char Shellcode[128] = "\x48\x83\xec\x08\x48\x8d\x3d\xa9\x0f\x00\x00\x31\xc0\x48\xBF\x00\x00\x00\x00\x00\x00\x00\x00\x48\xB8\x00\x00\x00\x00\x00\x00\x00\x00\x50\x48\xB8\x00\x00\x00\x00\x00\x00\x00\x00\x50\x48\xB8\x00\x00\x00\x00\x00\x00\x00\x00\xff\xe0\x31\xc0\x48\x83\xc4\x08\xc3\x0f\x1f\x80\x00\x00\x00\x00";
-	
-	char dataBuf[6] = "id\x00";
+	char* ProgramHeaderTable = reinterpret_cast<char*>(ElfHeader) + ElfHeader->e_phoff;
 
-	Elf64_Ehdr* ElfHeader = GetElfHeader();
-	// char* ProgramHeaderTable = reinterpret_cast<char*>(ElfHeader) + ElfHeader->e_phoff;
-
-	/*Elf64_Phdr* DynamicSectionProgramHeader = reinterpret_cast<Elf64_Phdr*>(ProgramHeaderTable);
+	Elf64_Phdr* DynamicSectionProgramHeader = reinterpret_cast<Elf64_Phdr*>(ProgramHeaderTable);
 	for(unsigned int i = 0; i < ElfHeader->e_phnum; ++i)
 	{
 		Elf64_Phdr* CurrentSection = reinterpret_cast<Elf64_Phdr*>(ProgramHeaderTable + i*ElfHeader->e_phentsize); // for byte ptr arithmetic
@@ -96,9 +91,20 @@ int main(void)
 		{
 			DynamicSectionProgramHeader = CurrentSection;
 		}
-	}*/
+	}
 
-	// Elf64_Dyn* DynamicSection = reinterpret_cast<Elf64_Dyn*>(DynamicSectionProgramHeader->p_offset + reinterpret_cast<char*>(ElfHeader));
+	Elf64_Dyn* DynamicSection = reinterpret_cast<Elf64_Dyn*>(DynamicSectionProgramHeader->p_offset + reinterpret_cast<char*>(ElfHeader));
+
+	return DynamicSection;
+}
+
+int main(void)
+{
+	char Shellcode[128] = "\x48\x83\xec\x08\x48\x8d\x3d\xa9\x0f\x00\x00\x31\xc0\x48\xBF\x00\x00\x00\x00\x00\x00\x00\x00\x48\xB8\x00\x00\x00\x00\x00\x00\x00\x00\x50\x48\xB8\x00\x00\x00\x00\x00\x00\x00\x00\x50\x48\xB8\x00\x00\x00\x00\x00\x00\x00\x00\xff\xe0\x31\xc0\x48\x83\xc4\x08\xc3\x0f\x1f\x80\x00\x00\x00\x00";
+	
+	char dataBuf[6] = "id\x00";
+
+	Elf64_Ehdr* ElfHeader = GetElfHeader();
 	
 	Elf64_Sym* SymbolTable = NULL;
 	char* GlobalOffsetTable = NULL;

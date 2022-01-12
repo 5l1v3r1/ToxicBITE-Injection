@@ -66,5 +66,51 @@ When a function from a dynamic library is called, the call instruction always, n
 
 ![](PLT0.png)
 
-When a PLT entry, other than the first one, is executed, it first jumps to the address contained in the corresponding part of the Global Offset Table (GOT). When the function hasn’t been called before, this address will point to the next instruction in the respective PLT entry - in the case of memcpy this is the instruction at address 1036. This instruction pushes the offset from the beginning of the relocation table at which the entry which should contain the appropriate address for the invoked function should reside. This is also the relocation argument we mentioned earlier. If the procedure has been previously invoked, its address will already be stored in the corresponding GOT entry and so the first instruction in the PLT entry will directly jump to the function at hand. The last instruction of every function’s PLT section just hands off execution to PLT0.
+When a PLT entry, other than the first one, is executed, it first jumps to the address contained in the corresponding part of the Global Offset Table (GOT). When the function hasn’t been called before, this address will point to the next instruction in the respective PLT entry - in the case of memcpy this is the instruction at address 1036. This instruction pushes the offset from the beginning of the relocation table at which relocation information about this particular symbol is located. This is also the relocation argument we mentioned earlier. If the procedure has been previously invoked, its address will already be stored in the corresponding GOT entry and so the first instruction in the PLT entry will directly jump to the function at hand. The last instruction of every function’s PLT section just hands off execution to PLT0.
+
+The relocation table of an executable is an array of either `Elf64_Rel` or `Elf64_Rela` structures (for x64). These are defined as follows:
+
+```cpp
+typedef struct {
+        Elf64_Addr      r_offset;
+        Elf64_Xword     r_info;
+} Elf64_Rel;
+ 
+typedef struct {
+        Elf64_Addr      r_offset;
+        Elf64_Xword     r_info;
+        Elf64_Sxword    r_addend;
+} Elf64_Rela;
+```
+
+`r_offset` is used by `_dl_runtime_resolve` to place the function's address at the appropriate entry of the GOT. It is an offset relative to the start of the binary (the ELF header).
+`r_info` is a field which is manipulated through a couple of macros in order to give us the index of the appropriate symbol in the symbol table (`.dynsym`) as well as tell us the type of relocation. These macros are defined like the following:
+
+```cpp
+#define ELF32_R_SYM(info)             ((info)>>8)
+#define ELF32_R_TYPE(info)            ((unsigned char)(info))
+#define ELF32_R_INFO(sym, type)       (((sym)<<8)+(unsigned char)(type))
+
+#define ELF64_R_SYM(info)             ((info)>>32)
+#define ELF64_R_TYPE(info)            ((Elf64_Word)(info))
+#define ELF64_R_INFO(sym, type)       (((Elf64_Xword)(sym)<<32)+ \ 
+                                        (Elf64_Xword)(type))
+```
+
+The dynamic symbol table (`.dynsym`) is an array of `Elf64_Sym` structures (for x64) which are comprised of the following:
+
+```cpp
+typedef struct {
+        Elf64_Word      st_name;
+        unsigned char   st_info;
+        unsigned char   st_other;
+        Elf64_Half      st_shndx;
+        Elf64_Addr      st_value;
+        Elf64_Xword     st_size;
+} Elf64_Sym;
+```
+
+For our purposes, the important fields are `st_name` and `st_other`. The first contains an offset from the beginning of the string table which stores a null-terminated string with the name of the symbol. Due to some checks that `_dl_resolve` performs, we will need `st_other` to be equal to 0.
+
+The string table is an array of null-terminated strings containing the names of the symbols in the executable.
 

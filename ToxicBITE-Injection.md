@@ -56,7 +56,7 @@ On the next lines, the address of printf is acquired and is then copied into the
 
 ![](patcher.png)
 
-Function execution from shellcode is successful! Now, we can all agree that this isn’t very useful, since we can only call printf and can only do so with a single argument. This can, however, be expanded upon, as we will now show. It is possible to choose and execute which function to invoke at runtime without the need to hardcode its address into the payload. This is achievable through the *_dl_resolve* function.
+Function execution from shellcode is successful! Now, we can all agree that this isn’t very useful, since we can only call printf and can only do so with a single argument. This can, however, be expanded upon, as we will now show. It is possible to choose and execute which function to invoke at runtime without the need to hardcode its address into the payload. This is achievable through the `_dl_resolve` function.
 
 # Dynamic Linking and _dl_resolve
 
@@ -114,3 +114,10 @@ For our purposes, the important fields are `st_name` and `st_other`. The first c
 
 The string table is an array of null-terminated strings containing the names of the symbols in the executable.
 
+## _dl_resolve
+When PLT0 hands off execution to `_dl_resolve`, the function will be called with the link map (pushed on the stack by PLT0) and the relocation argument (`reloc_arg`) which was pushed onto the stack by the respective PLT entry. You will notice that `_dl_resolve` takes its arguments directly from the stack. This is because once `_dl_resolve` finds the address of the requested symbol, it will invoke the procedure in addition to placing its address in the GOT. This means that we can still use the registers in order to provide arguments to the requested function.
+
+### How _dl_resolve works
+`_dl_resolve` on its own is just a wrapper around several other functions, but we won't discuss at length what each of these procedures does, only the general flow of the process. First, the relocation argument is used in order to locate the appropriate entry in the relocation table of the executable. The `r_info` member of this entry is then used to find the corresponding element in the dynamic symbol table. From there, `st_name` is utilised to locate the name of the function in the string table. Subsequently, `_dl_resolve_` avails itself of this string in order to lookup this string in the code of the library. Once the address is found, `r_offset` is used to locate where in the GOT it should be placed. The function is also called with any arguments which were provided to it. It looks something like this:
+
+![](_dl_resolve.png)

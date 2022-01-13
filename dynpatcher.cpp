@@ -16,6 +16,7 @@ void Addressor(void)
 }
 
 static char FakeStack[128]; // For manual stack alignment
+static long FakeGOT[2]; // two elements for now
 
 unsigned long AlignTo(unsigned long number, unsigned long multiple)
 {
@@ -134,6 +135,7 @@ int main(void)
 	reinterpret_cast<Elf64_Sym*>(FakeSymbolTable)->st_other = 0x0;
 	reinterpret_cast<Elf64_Sym*>(FakeSymbolTable)->st_name = FakeStringTable - StringTable;
 
+	
 	reinterpret_cast<Elf64_Rela*>(FakeRelocationTable)->r_info = (( RealToFakeSymbolTableOffset / 0x18 ) << 32 ) | 0x7;
 	reinterpret_cast<Elf64_Rela*>(FakeRelocationTable)->r_offset = FakeSymbolTable - (char*)ElfHeader;
 

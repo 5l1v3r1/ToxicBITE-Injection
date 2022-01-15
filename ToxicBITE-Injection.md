@@ -139,6 +139,3 @@ For the sake of simplicity, all of the fake tables will only contain one entry. 
 Since `_dl_resolve` takes the relocation argument directly from the stack, we can't actually use a `call` instruction, for it will push the return address to the stack and, therefore, `_dl_resolve` will end up reading the return address instead of the relocation argument. This minor inconvenience can be easily solved the manual emulation of a `call` instruction by pushing the return address to the stack before pushing the relocation argument and then using a jump instruction to execute PLT0. This way, `_dl_resolve` will take pop the relocation argument off the stack before calling the resolved function and the latter will end up with the appropriate return address (`_dl_resolve` uses a jump in order to hand off execution to the requested procedure). Now, the address of PLT0 isn't directly obtainable, but if we recall that the last instruction of every other PLT section is just a jump to PLT0, we can easily find the address of this last instruction through the GOT entry for a yet unresolved symbol - remember that this will point to the second instruction in the PLT section, so just add the length of this instruction to the address at the GOT - and jump to it.
 
 
-## Building the Payload
-
-
